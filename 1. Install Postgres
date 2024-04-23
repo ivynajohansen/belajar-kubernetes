@@ -1,0 +1,78 @@
+### Install Postgres di Kubernetes
+## 1. Buat PersistentVolumeClaim (PVC)
+PVC akan meminta storage dari cluster Kubernetes untuk data PostgreSQL. Buat file bernama `postgres-pvc.yaml`.
+
+```
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: postgres-pvc
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 1Gi
+```
+
+Apply ke cluster dengan `kubectl apply -f postgres-pvc.yaml`.
+
+## 2. Buat Secret 
+Buat secret untuk password PostgreSQL dengan file 'postgres-secret.yaml'
+
+```
+apiVersion: v1
+kind: Secret
+metadata:
+  name: postgres-secret
+type: Opaque
+data:
+  postgres-password: d2VsY29tZXBvc3RncmVz
+```
+postgres-password diatas adalah base64-encoded password dari 'welcomepostgres'. Apply ke cluster dengan `kubectl apply -f postgres-secret.yaml`.
+
+## 3. Buat Stateful Set Postgresql
+
+Buat file baru bernama 'postgres-statefulset.yaml' untuk deploy PostgreSQL. 
+
+```
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:latest
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_DB
+              value: Banking
+            - name: POSTGRES_USER
+              value: postgres
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: postgres-secret
+                  key: postgres-password
+          volumeMounts:
+            - name: postgres-storage
+              mountPath: /var/lib/postgresql/data
+      volumes:
+        - name: postgres-storage
+          persistentVolumeClaim:
+            claimName: postgres-pvc
+```
+
+Apply ke cluster dengan `kubectl apply -f postgres-statefulset.yaml`.
